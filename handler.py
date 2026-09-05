@@ -1,74 +1,41 @@
-"""Detects AWS Console logins from IP ranges / countries that aren't on the
-known-good list, and any login where MFA was not used.
-
-Triggered by an EventBridge rule matching CloudTrail's ConsoleLogin event,
-delivered on the default event bus.
+"""Detects creation of new IAM users. New IAM principals are rare in a
+steady-state account, so any creation is treated as noteworthy and worth a
+human glance -- this is one of the highest-value low-effort detections for
+catching both insider misuse and a compromised admin credential establishing
+persistence.
 """
-import ipaddress
+from alerting import publish_alert
+
+# Roles/users that are allowed to create IAM users without alerting, e.g. your
+# CI/CD or IaC pipeline role. Leave empty to alert on every creation.
 import os
 
-from alerting import publish_alert
-from geoip import lookup_country
-
-KNOWN_CIDRS = [c.strip() for c in os.environ.get("KNOWN_IP_RANGES", "").split(",") if c.strip()]
-ALLOWED_COUNTRIES = {c.strip().upper() for c in os.environ.get("ALLOWED_COUNTRIES", "US").split(",") if c.strip()}
-FLAG_FOREIGN_LOGINS = os.environ.get("FLAG_FOREIGN_LOGINS", "true").lower() == "true"
-
-
-def _ip_is_known(ip: str) -> bool:
-    try:
-        addr = ipaddress.ip_address(ip)
-    except ValueError:
-        return False
-    return any(addr in ipaddress.ip_network(cidr, strict=False) for cidr in KNOWN_CIDRS)
+SUPPRESS_FOR_PRINCIPALS = {
+    p.strip() for p in os.environ.get("SUPPRESS_FOR_PRINCIPALS", "").split(",") if p.strip()
+}
 
 
 def handler(event, context):
     detail = event.get("detail", {})
 
-    if detail.get("eventName") != "ConsoleLogin":
+    if detail.get("eventName") != "CreateUser":
         return {"skipped": True}
 
-    # Failed logins matter too, but we only alert on success here to keep
-    # signal-to-noise reasonable; wire a second lower-severity rule for
-    # repeated failures if you want brute-force detection.
-    if detail.get("responseElements", {}).get("ConsoleLogin") != "Success":
-        return {"skipped": True, "reason": "login not successful"}
+    actor = detail.get("userIdentity", {}).get("arn", "unknown")
+    if actor in SUPPRESS_FOR_PRINCIPALS:
+        return {"skipped": True, "reason": "actor is an allow-listed automation principal"}
 
-    ip = detail.get("sourceIPAddress", "")
-    user = detail.get("userIdentity", {}).get("arn", "unknown")
-    mfa_used = detail.get("additionalEventData", {}).get("MFAUsed", "No")
-
-    reasons = []
-
-    known_ip = _ip_is_known(ip)
-    if not known_ip:
-        reasons.append("source IP not in known/allowed CIDR ranges")
-
-    country = None
-    if FLAG_FOREIGN_LOGINS and not known_ip:
-        country = lookup_country(ip)
-        if country and country not in ALLOWED_COUNTRIES:
-            reasons.append(f"login originated from unexpected country: {country}")
-
-    if mfa_used != "Yes":
-        reasons.append("MFA was not used for this login")
-
-    if not reasons:
-        return {"skipped": True, "reason": "login matches known-good baseline"}
-
-    severity = "HIGH" if (not known_ip and mfa_used != "Yes") else "MEDIUM"
+    new_user = detail.get("requestParameters", {}).get("userName", "unknown")
+    source_ip = detail.get("sourceIPAddress", "unknown")
 
     publish_alert(
-        rule_name="console-login-unknown-location",
-        severity=severity,
-        summary=f"Console login for {user} from {ip} flagged: {'; '.join(reasons)}",
+        rule_name="new-iam-user-created",
+        severity="HIGH",
+        summary=f"New IAM user '{new_user}' created by {actor}",
         details={
-            "principal": user,
-            "source_ip": ip,
-            "country": country,
-            "mfa_used": mfa_used,
-            "reasons": reasons,
+            "new_user": new_user,
+            "created_by": actor,
+            "source_ip": source_ip,
             "event_time": detail.get("eventTime"),
         },
     )
