@@ -41,7 +41,7 @@ seconds with zero idle infrastructure cost — the whole pipeline scales to
 zero when there's no activity. CloudWatch Logs Insights covers the "SIEM"
 need for ad-hoc hunting via three saved queries (console logins, IAM writes,
 security group changes) without running a cluster. The trade-off, and what
-I'd revisit for a larger environment, is in [Known limitations](docs/architecture.md#known-limitations--what-id-add-next).
+I'd revisit for a larger environment, is in [Known limitations](architecture.md#known-limitations--what-id-add-next).
 
 ## Stack
 
