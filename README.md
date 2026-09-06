@@ -30,7 +30,7 @@ concrete detections that map to common real-world attack patterns.
    escalates to CRITICAL when the exposed port is SSH, RDP, or a common
    database engine.
 
-Full architecture and rule-by-rule reasoning: [`docs/architecture.md`](docs/architecture.md).
+Full architecture and rule-by-rule reasoning: [`architecture.md`](architecture.md).
 
 ## Why serverless instead of a hosted SIEM
 
