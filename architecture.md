@@ -1,47 +1,6 @@
 # Architecture
 
-```
-                    ┌──────────────────────┐
-                    │   AWS API activity    │
-                    │ (Console, CLI, SDKs)  │
-                    └──────────┬────────────┘
-                               │
-                               ▼
-                     ┌───────────────────┐
-                     │   AWS CloudTrail   │  multi-region, log file
-                     │  (management evts) │  validation enabled
-                     └──────┬─────┬───────┘
-                            │     │
-              ┌─────────────┘     └─────────────┐
-              ▼                                  ▼
-   ┌─────────────────────┐            ┌────────────────────────┐
-   │ S3 (durable archive) │            │ CloudWatch Logs group  │
-   │ encrypted, private   │            │ → Logs Insights (SIEM  │
-   └─────────────────────┘            │   query layer / hunting)│
-                                       └───────────┬─────────────┘
-                                                    │
-                                                    ▼
-                                        ┌───────────────────────┐
-                                        │  EventBridge (default  │
-                                        │  bus) — pattern match  │
-                                        │  on specific API calls │
-                                        └──────┬───┬───┬─────────┘
-                                               │   │   │
-                     ┌─────────────────────────┘   │   └─────────────────────────┐
-                     ▼                              ▼                             ▼
-          ┌────────────────────┐      ┌──────────────────────┐      ┌──────────────────────┐
-          │ Lambda: console-    │      │ Lambda: iam-user-     │      │ Lambda: sg-open-      │
-          │ login-unknown-      │      │ created                │      │ internet               │
-          │ location            │      │                        │      │                        │
-          └─────────┬───────────┘      └───────────┬────────────┘      └───────────┬────────────┘
-                     │                              │                               │
-                     └──────────────────────────────┼───────────────────────────────┘
-                                                     ▼
-                                          ┌────────────────────┐
-                                          │   SNS alert topic   │──▶ email (swap for
-                                          │  (per-finding JSON) │    Slack/PagerDuty)
-                                          └────────────────────┘
-```
+<img width="1195" height="896" alt="Cloud detection pipeline diagram" src="https://github.com/user-attachments/assets/13e48b8f-f150-483f-afc3-e968ab70c0ea" />
 
 ## Why this shape
 
