@@ -70,7 +70,7 @@ cloud-detection-pipeline/
 │   ├── detect_iam_user_created/
 │   └── detect_sg_open_internet/
 ├── build.sh                 # bundles lambda/common/ into each function's zip
-└── docs/architecture.md     # diagram + detection logic table + limitations
+└── architecture.md          # diagram + detection logic table + limitations
 ```
 
 ## Deploying it
